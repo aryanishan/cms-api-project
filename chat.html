@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Live Chat Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 16px }
+        #messages { display:flex; flex-direction:column; gap:6px; border:1px solid #eee; padding:8px; height:300px; overflow:auto }
+        .msg { padding:8px; border-radius:6px; max-width:60% }
+        .own { background:#e6f7ff; margin-left:auto; }
+        .other { background:#f5f5f5; margin-right:auto; }
+        #controls { margin-top:12px; display:flex; gap:8px; align-items:center }
+    </style>
+</head>
+<body>
+
+    <h1>Live Chat Test</h1>
+
+    <div>
+        <label for="userId">Your User Id</label>
+        <input id="userId" placeholder="Your User Id" />
+        <button id="connectBtn">Connect</button>
+        <span id="status">Disconnected</span>
+    </div>
+
+    <div id="messages"></div>
+
+    <div id="controls">
+        <input id="receiverId" placeholder="Receiver Id" />
+        <input id="message" placeholder="Message" style="flex:1" />
+        <button id="sendBtn">Send Message</button>
+    </div>
+
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script>
+        let socket;
+
+        function connectUser() {
+            const userId = document.getElementById('userId').value.trim();
+            if (!userId) return alert('Please enter your user id');
+
+            if (socket && socket.connected) {
+                return alert('Already connected');
+            }
+
+            socket = io();
+
+            socket.on('connect', () => {
+                socket.emit('user-online', userId);
+                document.getElementById('status').textContent = 'Connected';
+                document.getElementById('connectBtn').disabled = true;
+            });
+
+            socket.on('message-sent', ({ message }) => {
+                renderMessage(message, true);
+            });
+
+            socket.on('receive-message', ({ message }) => {
+                renderMessage(message, false);
+            });
+
+            socket.on('message-error', ({ error }) => {
+                alert('Message error: ' + (error || 'Unknown'));
+            });
+
+            socket.on('disconnect', () => {
+                document.getElementById('status').textContent = 'Disconnected';
+                document.getElementById('connectBtn').disabled = false;
+            });
+        }
+
+        function sendMessage() {
+            if (!socket || !socket.connected) return alert('Not connected');
+
+            const senderId = document.getElementById('userId').value.trim();
+            const receiverId = document.getElementById('receiverId').value.trim();
+            const message = document.getElementById('message').value.trim();
+
+            if (!senderId || !receiverId || !message) return alert('All fields are required');
+
+            socket.emit('send-message', { data: { senderId, receiverId, message } });
+            document.getElementById('message').value = '';
+        }
+
+        function renderMessage(msg, isOwn) {
+            const container = document.getElementById('messages');
+            const el = document.createElement('div');
+            el.className = 'msg ' + (isOwn ? 'own' : 'other');
+            const time = msg && msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString() : '';
+            el.textContent = (isOwn ? 'You' : msg.senderId) + ': ' + msg.message + (time ? ' (' + time + ')' : '');
+            container.appendChild(el);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        document.getElementById('connectBtn').addEventListener('click', connectUser);
+        document.getElementById('sendBtn').addEventListener('click', sendMessage);
+
+        // allow pressing Enter to send when focused on message input
+        document.getElementById('message').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+    </script>
+</body>
+</html>
